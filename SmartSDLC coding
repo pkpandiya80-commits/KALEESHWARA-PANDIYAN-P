@@ -1,0 +1,65 @@
+# -------------------------------------------------
+# Install required packages
+# -------------------------------------------------
+!pip install PyPDF2 transformers torch gradio
+
+# -------------------------------------------------
+# Imports
+# -------------------------------------------------
+import torch
+from transformers import AutoTokenizer, AutoModelForCausalLM
+import PyPDF2
+import gradio as gr
+
+# -------------------------------------------------
+# Load model & tokenizer
+# (you can change the model name if needed)
+# -------------------------------------------------
+model_name = "gpt2"   # lightweight example model
+tokenizer = AutoTokenizer.from_pretrained(model_name)
+model = AutoModelForCausalLM.from_pretrained(model_name)
+
+# -------------------------------------------------
+# Function: Summarize Policy from PDF
+# -------------------------------------------------
+def summarize_policy(pdf_file, text_input):
+    text = ""
+
+    # Extract text from uploaded PDF
+    if pdf_file is not None:
+        pdf_reader = PyPDF2.PdfReader(pdf_file)
+        for page in pdf_reader.pages:
+            text += page.extract_text() + "\n"
+
+    # Add manual text input (if provided)
+    if text_input:
+        text += "\n" + text_input
+
+    if not text.strip():
+        return "❌ No text provided to summarize."
+
+    # Tokenize and generate summary
+    inputs = tokenizer.encode(text[:1000], return_tensors="pt")  # limit length
+    summary_ids = model.generate(inputs, max_length=150, min_length=30, do_sample=True)
+    summary = tokenizer.decode(summary_ids[0], skip_special_tokens=True)
+
+    return summary
+
+# -------------------------------------------------
+# Gradio UI
+# -------------------------------------------------
+pdf_input = gr.File(label="Upload Policy PDF", file_types=[".pdf"])
+text_input = gr.Textbox(label="Or Paste Policy Text")
+output = gr.Textbox(label="Policy Summary")
+
+app = gr.Interface(
+    fn=summarize_policy,
+    inputs=[pdf_input, text_input],
+    outputs=output,
+    title="Policy Summarizer"
+)
+
+# -------------------------------------------------
+# Launch app
+# -------------------------------------------------
+app.launch()
